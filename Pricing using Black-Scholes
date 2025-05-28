@@ -1,6 +1,6 @@
 # Author : Léandre PERALDI
 # Date : 2025-05-28
-# Description : Exploring European Option Pricing under Black-Scholes
+# Description : Exploring European Option Pricing under Black-Scholes assumptions
 # Code written respecting PEP8 recommendations 
 
 # Pricing of a european call using Black-Scholes
