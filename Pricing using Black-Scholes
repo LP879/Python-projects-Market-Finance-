@@ -1,0 +1,31 @@
+# Pricing du call européen par Black-Scholes
+
+import numpy as np
+from scipy.stats import norm
+import matplotlib.pyplot as plt 
+
+def d1(S,K,r,T,σ):
+    return (np.log(S/K)+(r+(σ**2/2))*T)/(σ*np.sqrt(T))
+
+def d2(S,K,r,T,σ):
+    return d1(S,K,r,T,σ)-σ*np.sqrt(T)
+
+def N(x):
+    return norm.cdf(x)
+
+def call_price_bs(S,K,r,T,σ):
+    if T<0 or σ<0 or S<=0 or K<=0:
+        raise ValueError("un ou plusieurs paramètres invalides")
+    elif σ == 0:
+        return np.maximum(S-K*np.exp(-r*T),0)
+    elif T==0:
+        return np.maximum(S-K,0)
+    else:
+        d_1=d1(S,K,r,T,σ)
+        d_2=d2(S,K,r,T,σ)
+        return S*N(d_1)-K*np.exp(-r*T)*N(d_2)
+
+# Pricing du put européen par put-call parity   
+
+def put_price_bs(S,K,r,T,σ):
+    return call_price_bs(S,K,r,T,σ)-S+K*np.exp(-r*T)
