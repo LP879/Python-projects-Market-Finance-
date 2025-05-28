@@ -1,31 +1,88 @@
-# Pricing du call européen par Black-Scholes
+# Author : Léandre PERALDI
+# Date : 2025-05-28
+# Description : Exploring European Option Pricing under Black-Scholes
+# Code written respecting PEP8 recommendations 
+
+# Pricing of a european call using Black-Scholes
 
 import numpy as np
 from scipy.stats import norm
 import matplotlib.pyplot as plt 
 
-def d1(S,K,r,T,σ):
-    return (np.log(S/K)+(r+(σ**2/2))*T)/(σ*np.sqrt(T))
+def d1(S, K, r, T, sigma):
+    return (np.log(S/K)+(r+(sigma**2/2))*T)/(sigma*np.sqrt(T))
 
-def d2(S,K,r,T,σ):
-    return d1(S,K,r,T,σ)-σ*np.sqrt(T)
+def d2(S, K, r, T, sigma):
+    return d1(S, K, r, T, sigma)-sigma*np.sqrt(T)
 
-def N(x):
-    return norm.cdf(x)
+def call_price_bs(S, K, r, T, sigma):
+   """
+   Calculate the theoretical price of a European call using Black-Scholes Model.
 
-def call_price_bs(S,K,r,T,σ):
-    if T<0 or σ<0 or S<=0 or K<=0:
-        raise ValueError("un ou plusieurs paramètres invalides")
-    elif σ == 0:
-        return np.maximum(S-K*np.exp(-r*T),0)
-    elif T==0:
-        return np.maximum(S-K,0)
+    Parameters :
+        S (float)    : Price of the underlying 
+        K (float)    : Strike price
+        r (float)    : risk-free rate
+        T (float)    : Time-to-maturity
+        sigma (float): Annualized volatility of the underlying 
+
+    Returns :
+        float : Theoretical price of a european call option 
+    """
+
+    if T < 0 or sigma < 0 or S <= 0 or K < 0:
+        raise ValueError("one or more invalid variables")
+    elif sigma == 0:
+        return np.maximum(S-K*np.exp(-r*T), 0)
+    elif T == 0:
+        return np.maximum(S-K, 0)
+    elif K == 0:
+        return S 
     else:
-        d_1=d1(S,K,r,T,σ)
-        d_2=d2(S,K,r,T,σ)
-        return S*N(d_1)-K*np.exp(-r*T)*N(d_2)
+        d_1=d1(S, K, r, T, sigma)
+        d_2=d2(S, K, r, T, sigma)
+        return S*norm.cdf(d_1)-K*np.exp(-r*T)*norm.cdf(d_2)
 
-# Pricing du put européen par put-call parity   
+# Pricing of a european put using put-call parity   
 
-def put_price_bs(S,K,r,T,σ):
-    return call_price_bs(S,K,r,T,σ)-S+K*np.exp(-r*T)
+def put_price_bs(S, K, r, T, sigma):
+    return call_price_bs(S, K, r, T, sigma)-S+K*np.exp(-r*T)
+
+# Unitary test 
+
+if __name__ == "__main__":
+    S=110
+    K=100
+    r=0.07
+    T=1
+    sigma=0.32
+    print(f"The call theoretical price is: {call_price_bs(S, K, r, T, sigma):.4f}")
+    print(f"The put theoretical price is: {put_price_bs(S, K, r, T, sigma):.4f}")  
+
+# Graphical representation of the call according to its spot 
+
+x=np.linspace(0.01, 400, 1000)
+y=[call_price_bs(s, K, r, T, sigma) for s in x]
+
+plt.plot(x, y)
+
+plt.xlabel("Spot", fontsize=12)
+plt.ylabel("Price", fontsize=12)
+plt.title("Theoretical price of a European call according to the value of its underlying", fontsize=14)
+
+plt.grid(True)
+plt.show()
+
+# Graphical representation of a European put according to its spot
+
+x=np.linspace(0.01, 400, 1000)
+y=[put_price_bs(s, K, r, T, sigma) for s in x]
+
+plt.plot(x, y)
+
+plt.xlabel("Spot", fontsize=12)
+plt.ylabel("Price", fontsize=12)
+plt.title("Theoretical price of a put according to the value of its underlying", fontsize=14)
+
+plt.grid(True)
+plt.show()
