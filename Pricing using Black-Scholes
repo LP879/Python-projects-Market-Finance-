@@ -14,9 +14,7 @@ def d1(S, K, r, T, sigma):
 
 def d2(S, K, r, T, sigma):
     return d1(S, K, r, T, sigma)-sigma*np.sqrt(T)
-
-def call_price_bs(S, K, r, T, sigma):
-   """
+"""
    Calculate the theoretical price of a European call using Black-Scholes Model.
 
     Parameters :
@@ -29,7 +27,7 @@ def call_price_bs(S, K, r, T, sigma):
     Returns :
         float : Theoretical price of a european call option 
     """
-
+def call_price_bs(S, K, r, T, sigma):
     if T < 0 or sigma < 0 or S <= 0 or K < 0:
         raise ValueError("one or more invalid variables")
     elif sigma == 0:
