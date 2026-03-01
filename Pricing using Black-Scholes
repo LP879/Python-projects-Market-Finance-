@@ -1,86 +1,162 @@
-# Author : Léandre PERALDI
-# Date : 2025-05-28
-# Description : Exploring European Option Pricing under Black-Scholes assumptions
-# Code written respecting PEP8 recommendations 
+# ============================================
+# 0. Import libraries
+# ============================================
 
-# Pricing of a european call using Black-Scholes
-
+import yfinance as yf
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
 from scipy.stats import norm
-import matplotlib.pyplot as plt 
 
-def d1(S, K, r, T, sigma):
-    return (np.log(S/K)+(r+(sigma**2/2))*T)/(sigma*np.sqrt(T))
 
-def d2(S, K, r, T, sigma):
-    return d1(S, K, r, T, sigma)-sigma*np.sqrt(T)
-"""
-   Calculate the theoretical price of a European call using Black-Scholes Model.
+# ============================================
+# 1. Black-Scholes-Merton Vanilla Pricer
+# ============================================
 
-    Parameters :
-        S (float)    : Price of the underlying 
-        K (float)    : Strike price
-        r (float)    : risk-free rate
-        T (float)    : Time-to-maturity
-        sigma (float): Annualized volatility of the underlying 
+# 1.1 Preliminary functions
 
-    Returns :
-        float : Theoretical price of a european call option 
-    """
-def call_price_bs(S, K, r, T, sigma):
-    if T < 0 or sigma < 0 or S <= 0 or K < 0:
-        raise ValueError("one or more invalid variables")
-    elif sigma == 0:
-        return np.maximum(S-K*np.exp(-r*T), 0)
-    elif T == 0:
-        return np.maximum(S-K, 0)
-    elif K == 0:
-        return S 
-    else:
-        d_1=d1(S, K, r, T, sigma)
-        d_2=d2(S, K, r, T, sigma)
-        return S*norm.cdf(d_1)-K*np.exp(-r*T)*norm.cdf(d_2)
+def N(x):
+    return norm.cdf(x)
 
-# Pricing of a european put using put-call parity   
+def dN(x):
+    return norm.pdf(x)
 
-def put_price_bs(S, K, r, T, sigma):
-    return call_price_bs(S, K, r, T, sigma)-S+K*np.exp(-r*T)
 
-# Unitary test 
+# 1.2 Black-Scholes-Merton formulas
 
-if __name__ == "__main__":
-    S=110
-    K=100
-    r=0.07
-    T=1
-    sigma=0.32
-    print(f"The call theoretical price is: {call_price_bs(S, K, r, T, sigma):.4f}")
-    print(f"The put theoretical price is: {put_price_bs(S, K, r, T, sigma):.4f}")  
+def d1(S0, K, r, q, T, sigma):
+    return (np.log(S0 / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
 
-# Graphical representation of the call according to its spot 
+def d2(S0, K, r, q, T, sigma):
+    return d1(S0, K, r, q, T, sigma) - sigma * np.sqrt(T)
 
-x=np.linspace(0.01, 400, 1000)
-y=[call_price_bs(s, K, r, T, sigma) for s in x]
+def BSM_call(S0, K, r, q, T, sigma):
+    d1_val = d1(S0, K, r, q, T, sigma)
+    d2_val = d2(S0, K, r, q, T, sigma)
+    return S0 * np.exp(-q * T) * N(d1_val) - K * np.exp(-r * T) * N(d2_val)
 
-plt.plot(x, y)
+def BSM_put(S0, K, r, q, T, sigma):
+    call_price = BSM_call(S0, K, r, q, T, sigma)
+    return call_price - (S0 * np.exp(-q * T) - K * np.exp(-r * T))
 
-plt.xlabel("Spot", fontsize=12)
-plt.ylabel("Price", fontsize=12)
-plt.title("Theoretical price of a European call according to the value of its underlying", fontsize=14)
 
-plt.grid(True)
-plt.show()
+# ============================================
+# 1.2 Bonus – Greeks
+# ============================================
 
-# Graphical representation of a European put according to its spot
+def Delta_call(S0, K, r, q, T, sigma):
+    return np.exp(-q * T) * N(d1(S0, K, r, q, T, sigma))
 
-x=np.linspace(0.01, 400, 1000)
-y=[put_price_bs(s, K, r, T, sigma) for s in x]
+def Delta_put(S0, K, r, q, T, sigma):
+    return Delta_call(S0, K, r, q, T, sigma) - np.exp(-q * T)
 
-plt.plot(x, y)
+def Gamma(S0, K, r, q, T, sigma):
+    d1_val = d1(S0, K, r, q, T, sigma)
+    return (dN(d1_val) * np.exp(-q * T)) / (S0 * sigma * np.sqrt(T))
 
-plt.xlabel("Spot", fontsize=12)
-plt.ylabel("Price", fontsize=12)
-plt.title("Theoretical price of a put according to the value of its underlying", fontsize=14)
+def Vega(S0, K, r, q, T, sigma):
+    d1_val = d1(S0, K, r, q, T, sigma)
+    return S0 * np.exp(-q * T) * dN(d1_val) * np.sqrt(T)
 
-plt.grid(True)
-plt.show()
+def Theta_call_daily(S0, K, r, q, T, sigma):
+    d1_val = d1(S0, K, r, q, T, sigma)
+    d2_val = d2(S0, K, r, q, T, sigma)
+    theta = (
+        (-S0 * sigma * np.exp(-q * T) * dN(d1_val)) / (2 * np.sqrt(T))
+        - r * K * np.exp(-r * T) * N(d2_val)
+        + q * S0 * np.exp(-q * T) * N(d1_val)
+    )
+    return theta / 252
+
+def Theta_put_daily(S0, K, r, q, T, sigma):
+    d1_val = d1(S0, K, r, q, T, sigma)
+    d2_val = d2(S0, K, r, q, T, sigma)
+    theta = (
+        (-S0 * sigma * np.exp(-q * T) * dN(d1_val)) / (2 * np.sqrt(T))
+        + r * K * np.exp(-r * T) * N(-d2_val)
+        - q * S0 * np.exp(-q * T) * N(-d1_val)
+    )
+    return theta / 252
+
+def rho_call(S0, K, r, q, T, sigma):
+    return K * T * np.exp(-r * T) * N(d2(S0, K, r, q, T, sigma))
+
+def rho_put(S0, K, r, q, T, sigma):
+    return -K * T * np.exp(-r * T) * N(-d2(S0, K, r, q, T, sigma))
+
+
+# ============================================
+# 1.3 Model Parameters
+# ============================================
+
+S0 = 1.2
+K = 1
+sigma = 0.2
+r = 0.02
+q = 0.05
+T = 3
+
+print("Call Price:", BSM_call(S0, K, r, q, T, sigma))
+print("Put Price:", BSM_put(S0, K, r, q, T, sigma))
+
+
+# ============================================
+# 2. Implied Volatility – Newton-Raphson
+# ============================================
+
+def Newton_Raphson_volatility(S0, K, r, q, T, call_mkt_price,
+                              threshold=1e-6, max_iter=100):
+
+    sigma = max(
+        np.sqrt((2 * abs(np.log(S0 / K) + (r - q) * T)) / T),
+        1e-4
+    )
+
+    for _ in range(max_iter):
+        price_diff = BSM_call(S0, K, r, q, T, sigma) - call_mkt_price
+
+        if abs(price_diff) < threshold:
+            return sigma
+
+        vega = Vega(S0, K, r, q, T, sigma)
+
+        if vega < 1e-8:
+            break
+
+        sigma = max(sigma - price_diff / vega, 1e-4)
+
+    return sigma
+
+
+# ============================================
+# 3. Yahoo Finance Option Chain Extraction
+# ============================================
+
+ticker = "AAPL"
+stock = yf.Ticker(ticker)
+
+exp_date = stock.options[0]
+chain = stock.option_chain(exp_date)
+
+calls = chain.calls
+puts = chain.puts
+
+print(calls.head())
+
+
+# ============================================
+# 3.2 Liquidity Filtering
+# ============================================
+
+calls_clean = calls.dropna(
+    subset=["bid", "ask", "volume", "openInterest"]
+).copy()
+
+calls_clean["mid_price"] = (calls_clean["bid"] + calls_clean["ask"]) / 2
+calls_clean["spread"] = calls_clean["ask"] - calls_clean["bid"]
+calls_clean["rel_spread"] = calls_clean["spread"] / calls_clean["mid_price"]
+
+liquid_calls = calls_clean[
+    (calls_clean["rel_spread"] <= 0.02) &
+    (calls_clean["volume"] >= 1) &
+    (calls_clean["openInterest"] >= 50)
