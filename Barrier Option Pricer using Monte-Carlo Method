@@ -1,0 +1,105 @@
+import yfinance as yf
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+from scipy.stats import norm
+import streamlit as st
+
+ticker = "TSLA"
+start_date = "2025-03-04"
+end_date = "2026-03-04"
+
+
+def yfinance_extraction(ticker, start_date, end_date):
+    
+    ticker_obj = yf.Ticker(ticker)
+    df = ticker_obj.history(
+        start=start_date,
+        end=end_date,
+        auto_adjust=True   # ajuste pour splits/dividendes
+    )
+    
+    if df is None or df.empty:
+        raise ValueError("No data downloaded. Check internet connection or ticker.")
+    
+    closing = df["Close"]
+    return closing
+
+
+historical_pricing = yfinance_extraction(ticker, start_date, end_date)
+
+def Barrier_payoff(S, K, H, Option, Direction, Knock):
+    if Direction == "D" : 
+        barrier_hit = S.min() <= H
+    elif Direction == "U":
+        barrier_hit = S.max() >= H 
+
+    if Knock == "I":
+        active = barrier_hit
+    elif Knock == "O":
+        active = not barrier_hit 
+
+    S_T = S.iloc[-1]
+    if active and Option == "C":
+        return np.maximum(S_T-K, 0)
+    elif active and Option == "P":
+        return np.maximum(K-S_T, 0)
+    else :
+        return 0
+        
+        
+
+def Monte_Carlo_Simulations(nb_simulations, S0, r, sigma, T, steps):
+    dt = T / steps 
+    simulations = np.zeros((steps + 1, nb_simulations))
+    simulations[0] = S0
+    for t in range (1, steps + 1):
+        z = np.random.standard_normal(nb_simulations)
+        simulations[t] = simulations[t-1]*np.exp((r-((sigma**2)/2))*dt + sigma * np.sqrt(dt) * z)
+    return simulations  
+
+historical_log_returns = np.log(historical_pricing/historical_pricing.shift(1)).dropna()
+S0 = historical_pricing.iloc[0]
+nb_simulations = 100
+r = 0.0215
+sigma = historical_log_returns.std() *np.sqrt(252)
+T = 1
+steps = len(historical_pricing) - 1
+
+MC_simulations = pd.DataFrame(Monte_Carlo_Simulations(nb_simulations, S0, r, sigma, T, steps))
+MC_simulations.index = historical_pricing.index
+
+def Monte_Carlo_Barrier_Pricer(H, K, Option, Direction, Knock, r, T):
+    S = 0
+    for i in range (0, nb_simulations):
+        S += Barrier_payoff(MC_simulations.iloc[:, i], K, H, Option, Direction, Knock)
+    return (1/nb_simulations) * np.exp(-r*T) * S
+
+H = 0.75*S0
+K = S0
+Option = "P"
+Direction = "D"
+Knock = "I"
+
+print(Monte_Carlo_Barrier_Pricer(H, K, Option, Direction, Knock, r, T))
+
+# Plot
+plt.figure(figsize=(10, 6))
+historical_pricing.plot()
+
+for i in MC_simulations.columns:
+    plt.plot(MC_simulations[i])
+
+plt.title(f"{ticker} Closing Prices")
+plt.xlabel("Date")
+plt.ylabel("Price")
+plt.grid(True)
+plt.show()
+
+plt.figure(figsize=(10, 6))
+historical_log_returns.plot()
+plt.title(f"{ticker} log returns")
+plt.xlabel("Date")
+plt.ylabel("Price")
+plt.grid(True)
+plt.show()
