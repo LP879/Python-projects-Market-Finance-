@@ -1,0 +1,115 @@
+import yfinance as yf
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+from scipy.stats import norm
+import streamlit as st
+
+ticker = "TSLA"
+start_date = "2025-03-04"
+end_date = "2026-03-04"
+
+
+def yfinance_extraction(ticker, start_date, end_date):
+    
+    ticker_obj = yf.Ticker(ticker)
+    df = ticker_obj.history(start=start_date, end=end_date, auto_adjust=True 
+    )
+    
+    if df is None or df.empty:
+        raise ValueError("No data downloaded. Check internet connection or ticker.")
+    
+    closing = df["Close"]
+    return closing
+
+
+historical_pricing = yfinance_extraction(ticker, start_date, end_date)
+
+def Lookback_Options(S, Option, Lookback_Strike):
+    if Lookback_Strike == "Max" : 
+        K = S.max() 
+    elif Lookback_Strike == "Asian":
+        K = S.mean() 
+
+    elif Lookback_Strike == "Min":
+       K = S.min() 
+    else :
+        raise ValueError("lookback_strike must be 'Max', 'Min' or 'Asian'")
+
+    S_T = S[-1]
+    if Option == "C":
+        return np.maximum(S_T-K, 0)
+    elif Option == "P":
+        return np.maximum(K-S_T, 0)
+    else :
+        raise ValueError("Option must be 'C', or 'P'")
+        
+      
+
+def Monte_Carlo_Simulations(nb_simulations, S0, V0, kappa, theta, sigma, rho, r, T, steps):
+    dt = T / steps 
+    simulations = np.zeros((steps + 1, nb_simulations))
+    Variance = np.zeros((steps + 1, nb_simulations))
+    
+    simulations[0] = S0
+    Variance[0] = V0
+    
+    for t in range (1, steps + 1):
+        Z1 = np.random.standard_normal(nb_simulations)
+        Z2 = np.random.standard_normal(nb_simulations)
+        
+        dW_S = np.sqrt(dt) * Z1
+        dW_V = rho * dW_S + np.sqrt(1 - rho**2) * np.sqrt(dt) * Z2
+        
+        Variance[t] = np.maximum(Variance[t-1] + kappa * (theta - Variance[t-1]) * dt + sigma * np.sqrt(np.maximum(Variance[t-1],0)) * dW_V,0)
+        simulations[t] = simulations[t-1]*np.exp((r-((Variance[t])/2))*dt + np.sqrt(np.maximum(Variance[t],0)) * dW_S)
+    return simulations 
+
+historical_log_returns = np.log(historical_pricing/historical_pricing.shift(1)).dropna()
+nb_simulations = 100000
+S0 = historical_pricing.iloc[-1]
+V0 = (historical_log_returns.std() *np.sqrt(252))**2
+kappa = 2
+theta = 0.04
+sigma = 0.3
+rho = -0.7
+r = 0.0215
+T = 1
+steps = len(historical_pricing) - 1
+
+MC_simulations = pd.DataFrame(Monte_Carlo_Simulations(nb_simulations, S0, V0, kappa, theta, sigma, rho, r, T, steps))
+MC_simulations.index = historical_pricing.index
+
+def Monte_Carlo_Lookback_Pricer(nb_simulations, S0, V0, kappa, theta, sigma, rho, r, T, steps, Option, Lookback_Strike):
+    S = 0
+    MC_sim = Monte_Carlo_Simulations(nb_simulations, S0, V0, kappa, theta, sigma, rho, r, T, steps)
+    for i in range (0, nb_simulations):
+        S += Lookback_Options(MC_sim[:,i], Option, Lookback_Strike)
+    return (1/nb_simulations) * np.exp(-r*T) * S
+
+
+Option = "P"
+Lookback_Strike = "Max"
+
+print(Monte_Carlo_Lookback_Pricer(nb_simulations, S0, V0, kappa, theta, sigma, rho, r, T, steps, Option, Lookback_Strike))
+
+# Plot
+plt.figure(figsize=(10, 6))
+historical_pricing.plot()
+
+for i in range(50):
+    plt.plot(MC_simulations[:,i])
+
+plt.title(f"{ticker} Closing Prices")
+plt.xlabel("Date")
+plt.ylabel("Price")
+plt.grid(True)
+plt.show()
+
+plt.figure(figsize=(10, 6))
+historical_log_returns.plot()
+plt.title(f"{ticker} log returns")
+plt.xlabel("Date")
+plt.ylabel("Price")
+plt.grid(True)
+plt.show()
