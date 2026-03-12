@@ -1,28 +1,14 @@
-# ============================================
-# 0. Import libraries
-# ============================================
-
 import yfinance as yf
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 
-
-# ============================================
-# 1. Black-Scholes-Merton Vanilla Pricer
-# ============================================
-
-# 1.1 Preliminary functions
-
 def N(x):
     return norm.cdf(x)
 
 def dN(x):
     return norm.pdf(x)
-
-
-# 1.2 Black-Scholes-Merton formulas
 
 def d1(S0, K, r, q, T, sigma):
     return (np.log(S0 / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
@@ -38,11 +24,6 @@ def BSM_call(S0, K, r, q, T, sigma):
 def BSM_put(S0, K, r, q, T, sigma):
     call_price = BSM_call(S0, K, r, q, T, sigma)
     return call_price - (S0 * np.exp(-q * T) - K * np.exp(-r * T))
-
-
-# ============================================
-# 1.2 Bonus – Greeks
-# ============================================
 
 def Delta_call(S0, K, r, q, T, sigma):
     return np.exp(-q * T) * N(d1(S0, K, r, q, T, sigma))
@@ -84,11 +65,6 @@ def rho_call(S0, K, r, q, T, sigma):
 def rho_put(S0, K, r, q, T, sigma):
     return -K * T * np.exp(-r * T) * N(-d2(S0, K, r, q, T, sigma))
 
-
-# ============================================
-# 1.3 Model Parameters
-# ============================================
-
 S0 = 1.2
 K = 1
 sigma = 0.2
@@ -98,11 +74,6 @@ T = 3
 
 print("Call Price:", BSM_call(S0, K, r, q, T, sigma))
 print("Put Price:", BSM_put(S0, K, r, q, T, sigma))
-
-
-# ============================================
-# 2. Implied Volatility – Newton-Raphson
-# ============================================
 
 def Newton_Raphson_volatility(S0, K, r, q, T, call_mkt_price,
                               threshold=1e-6, max_iter=100):
@@ -127,11 +98,6 @@ def Newton_Raphson_volatility(S0, K, r, q, T, call_mkt_price,
 
     return sigma
 
-
-# ============================================
-# 3. Yahoo Finance Option Chain Extraction
-# ============================================
-
 ticker = "AAPL"
 stock = yf.Ticker(ticker)
 
@@ -142,11 +108,6 @@ calls = chain.calls
 puts = chain.puts
 
 print(calls.head())
-
-
-# ============================================
-# 3.2 Liquidity Filtering
-# ============================================
 
 calls_clean = calls.dropna(
     subset=["bid", "ask", "volume", "openInterest"]
